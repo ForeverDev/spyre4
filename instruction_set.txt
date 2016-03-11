@@ -1,0 +1,28 @@
+SPYRE BYTECODE INSTRUCTION SET
+
+INSTRUCTION		OPCODE	OTHER_BYTES		STACK_OFFSET	STACK_CHANGE
+---------------------------------------------------------------------------
+NULL			00						0							
+NOOP			01						0				
+EXIT			02						0				
+PUSH_B			03		u8				1				-> int
+PUSH_I			04		u64				1				-> int
+PUSH_F			05		f64				1				-> float
+ADD_I			06						-1				v0, v1 -> result
+SUB_I			07						-1				v0, v1 -> result
+MUL_I			08						-1				v0, v1 -> result
+DIV_I			09						-1				v0, v1 -> result
+POW_I			0a						-1				v0, v1 -> result
+MOD_I			0b						-1				v0, v1 -> result
+SHL_I			0c						-1				v0, v1 -> result
+SHR_I			0d						-1				v0, v1 -> result
+AND_I			0e						-1				v0, v1 -> result
+OR_I			0f						-1				v0, v1 -> result
+XOR_I			10						-1				v0, v1 -> result
+NOT_I			11						-1				v0 -> result
+FTOI			12						0				float_v -> (int)v0
+BTOI			13						0				byte_v -> (int)v0
+CALL			14		u32	u16			3				-> nargs, bp, ip	
+RET_I			15						-3				retv, ip, bp, nargs -> retv
+RET_F			16						-3				retv, ip, bp, nargs -> retv
+
