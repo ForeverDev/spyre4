@@ -11,9 +11,9 @@ typedef struct spy_memoryMap	spy_memoryMap;
 struct spy_state {
 	
 	spy_memoryMap*		heap_data;
-	uint32				ip;
-	uint32				sp;
-	uint32				bp;
+	uint8*				ip;
+	uint64*				sp;
+	uint64*				bp;
 	uint8*				code;
 	uint8				memory[SIZE_MEMORY];
 

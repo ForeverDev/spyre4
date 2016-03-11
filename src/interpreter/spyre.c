@@ -18,9 +18,9 @@ spy_state*
 spy_newstate() {
 
 	spy_state* S = malloc(sizeof(spy_state));	
-	S->ip = 0;
-	S->sp = START_STACK;
-	S->bp = START_STACK;
+	S->ip = NULL;
+	S->sp = (uint64*)&S->memory[START_STACK + SIZE_STACK];
+	S->bp = (uint64*)&S->memory[START_STACK + SIZE_STACK];
 	S->code = NULL; /* to be allocated in spy_run */
 	
 	/* setup the memory map */
@@ -46,11 +46,10 @@ spy_newstate() {
 static inline
 void
 spy_pushFromCode(spy_state* S, size_t bytes) {
-	memset(&S->memory[S->sp + 1], 0, STACK_ALIGNMENT);
-	S->sp += STACK_ALIGNMENT;
 	for (uint32 i = 0; i < bytes; i++) {
-		S->memory[S->sp - i] = S->code[S->ip++]; 
+		*((uint8*)S->sp - i - 1) = *S->ip++; 
 	}
+	S->sp--;
 }
 
 /*	function:	spy_pushInt
@@ -62,8 +61,7 @@ spy_pushFromCode(spy_state* S, size_t bytes) {
 static inline
 void
 spy_pushInt(spy_state* S, uint64 value) {
-	S->sp += SIZEOF_INT;
-	memcpy(&S->memory[S->sp - SIZEOF_INT + 1], &value, SIZEOF_INT); 
+	*--S->sp = value;
 }
 
 /*	function:	spy_popInt
@@ -76,10 +74,7 @@ spy_pushInt(spy_state* S, uint64 value) {
 static inline
 uint64
 spy_popInt(spy_state* S) {
-	uint64 tos;
-	memcpy(&tos, &S->memory[S->sp - SIZEOF_INT + 1], SIZEOF_INT);
-	S->sp -= SIZEOF_INT;
-	return tos;	
+	return *S->sp++;
 }
 
 /*	function:	spy_popFloat
@@ -92,10 +87,7 @@ spy_popInt(spy_state* S) {
 static inline
 float64
 spy_popFloat(spy_state* S) {
-	float64 tos;
-	memcpy(&tos, &S->memory[S->sp - SIZEOF_FLOAT + 1], SIZEOF_FLOAT);
-	S->sp -= SIZEOF_FLOAT;
-	return tos;	
+	return *(float64*)S->sp++;
 }
 
 /*	function:	spy_readInt8
@@ -109,7 +101,7 @@ spy_popFloat(spy_state* S) {
 static inline
 uint8
 spy_readInt8(spy_state* S) {
-	return S->code[S->ip++];
+	return *S->ip++;
 }
 
 /*	function:	spy_readInt16
@@ -123,10 +115,9 @@ spy_readInt8(spy_state* S) {
 static inline
 uint16
 spy_readInt16(spy_state* S) {
-	uint16 result;
-	memcpy(&result, &S->code[S->ip], 2);
+	uint16 result = *(uint16*)S->ip;
 	S->ip += 2;
-	return bswap_16(result);
+	return result;
 }
 
 /*	function:	spy_readInt32
@@ -140,10 +131,9 @@ spy_readInt16(spy_state* S) {
 static inline
 uint32
 spy_readInt32(spy_state* S) {
-	uint32 result;
-	memcpy(&result, &S->code[S->ip], 4);
+	uint32 result = *(uint32*)S->ip;
 	S->ip += 4;
-	return bswap_32(result);
+	return result;
 }
 
 /*	function:	spy_readInt64
@@ -157,10 +147,9 @@ spy_readInt32(spy_state* S) {
 static inline
 uint64
 spy_readInt64(spy_state* S) {
-	uint64 result;
-	memcpy(&result, &S->code[S->ip], 8);
+	uint64 result = *(uint64*)S->ip;
 	S->ip += 8;
-	return bswap_64(result);
+	return result;
 }
 
 /* function:	spy_dumpStack
@@ -173,8 +162,8 @@ static
 void
 spy_dumpStack(spy_state* S) {
 	printf("STACK DUMP:\n");
-	for (uint32 i = START_STACK + 1; i <= S->sp; i++) {
-		printf("0x%04x: %02x\n", i, S->memory[i]);	
+	for (uint8* i = &S->memory[START_STACK + SIZE_STACK - 1]; i >= (uint8*)S->sp; i--) {
+		printf("0x%08lx: %02x\n", i - S->memory, *i);	
 	}
 }
 
@@ -202,6 +191,7 @@ spy_run(spy_state* S, const uint8* code, size_t size) {
 	/* allocate space for S->code to store the code */
 	if (S->code) free(S->code);
 	S->code = malloc(size + 1);
+	S->ip = S->code;
 	
 	/* copy the argument code into S->code */
 	memcpy(S->code, code, size);
@@ -215,7 +205,8 @@ spy_run(spy_state* S, const uint8* code, size_t size) {
 	uint32	a32, b32;
 	uint64	a64, b64;
 
-	while ((opcode = S->code[S->ip++])) {
+
+	while ((opcode = *S->ip++)) {
 		
 		/* direct threading is significantly faster than
 		 * using a switch in this case because we don't have
@@ -309,7 +300,7 @@ call:
 
 		/* setup function environment and jump */
 		S->bp = S->sp;
-		S->ip = a32;
+		S->ip = &S->code[a32];
 
 		continue;
 ret_i:
