@@ -4,23 +4,13 @@
 #include <math.h>
 #include "spyre.h"
 
-/* function:	spy_newstate
- *
- * desc:		creates and initializes a Spyre Virtual Machine
- *				state capable of running Spyre bytecode.  The
- *				VM state is initialized.  The only uninitialized
- *				field is member code, which will be initialized
- *				in method spy_run
- *
- * returns:		a Spyre virtual machine state
- */
 spy_state* 
 spy_newstate() {
 
 	spy_state* S = malloc(sizeof(spy_state));	
 	S->ip = NULL;
-	S->sp = (uint64*)&S->memory[START_STACK + SIZE_STACK];
-	S->bp = (uint64*)&S->memory[START_STACK + SIZE_STACK];
+	S->sp = (uint64 *)&S->memory[START_STACK + SIZE_STACK];
+	S->bp = (uint64 *)&S->memory[START_STACK + SIZE_STACK];
 	S->code = NULL; /* to be allocated in spy_run */
 	
 	/* setup the memory map */
@@ -33,145 +23,79 @@ spy_newstate() {
 
 }
 
-/* function:	spy_pushFromCode
- *
- * desc:		copies @bytes number of bytes from code memory
- *				to the stack.  it leaves the stack aligned to
- *				an 8 byte boundary.  it expects that IP is
- *				pointing to the first byte to copy... it also
- *				handles moving IP forward @bytes number of bytes.
- *
- * returns:		nothing
- */
 static inline
 void
 spy_pushFromCode(spy_state* S, size_t bytes) {
 	for (uint32 i = 0; i < bytes; i++) {
-		*((uint8*)S->sp - i - 1) = *S->ip++; 
+		*((uint8 *)S->sp - i - 1) = *S->ip++; 
 	}
 	S->sp--;
 }
 
-/*	function:	spy_pushInt
- *
- *	desc:		pushes a 64 bit integer @value onto the stack
- *
- *	returns:	nothing
- */
 static inline
 void
 spy_pushInt(spy_state* S, uint64 value) {
 	*--S->sp = value;
 }
 
-/*	function:	spy_popInt
- *
- *	desc:		pops a 64 bit integer from the stack and returns
- *				it to the caller
- *
- *	returns:	64 bit integer from the stack
- */
+static inline
+void
+spy_pushFloat(spy_state* S, float64 value) {
+	*(float64 *)--S->sp = value;
+}
+
 static inline
 uint64
 spy_popInt(spy_state* S) {
 	return *S->sp++;
 }
 
-/*	function:	spy_popFloat
- *	
- *	desc:		pops a 64 bit floating point number from the stack
- *				and returns it to the caller
- *
- *	returns:	64 bit float from the stack
- */
 static inline
 float64
 spy_popFloat(spy_state* S) {
-	return *(float64*)S->sp++;
+	return *(float64 *)S->sp++;
 }
 
-/*	function:	spy_readInt8
- *
- *	desc:		reads one byte from code memory (starting at S->ip)
- *				and returns it to the caller... note that this does
- *				NOT read from the stack
- *
- *	returns:	8 bit integer from code memory
- */
 static inline
 uint8
 spy_readInt8(spy_state* S) {
 	return *S->ip++;
 }
 
-/*	function:	spy_readInt16
- *
- *	desc:		reads two bytes from code memory (starting at S->ip)
- *				and returns it to the caller... note that this does
- *				NOT read from the stack
- *
- *	returns:	16 bit integer from code memory
- */
 static inline
 uint16
 spy_readInt16(spy_state* S) {
-	uint16 result = *(uint16*)S->ip;
+	uint16 result = *(uint16 *)S->ip;
 	S->ip += 2;
 	return result;
 }
 
-/*	function:	spy_readInt32
- *
- *	desc:		reads four bytes from code memory (starting at S->ip)
- *				and returns it to the caller... note that this does
- *				NOT read from the stack
- *
- *	returns:	32 bit integer from code memory
- */
 static inline
 uint32
 spy_readInt32(spy_state* S) {
-	uint32 result = *(uint32*)S->ip;
+	uint32 result = *(uint32 *)S->ip;
 	S->ip += 4;
 	return result;
 }
 
-/*	function:	spy_readInt64
- *
- *	desc:		reads eight bytes from code memory (starting at S->ip)
- *				and returns it to the caller... note that this does
- *				NOT read from the stack
- *
- *	returns:	64 bit integer from code memory
- */
 static inline
 uint64
 spy_readInt64(spy_state* S) {
-	uint64 result = *(uint64*)S->ip;
+	uint64 result = *(uint64 *)S->ip;
 	S->ip += 8;
 	return result;
 }
 
-/* function:	spy_dumpStack
- *
- * desc:		for debugging purposes, prints out the stack
- *
- * returns:		nothing
- */
 static
 void
 spy_dumpStack(spy_state* S) {
 	printf("STACK DUMP:\n");
-	for (uint8* i = &S->memory[START_STACK + SIZE_STACK - 1]; i >= (uint8*)S->sp; i--) {
+	printf("SP: %08llx\n", (uint64)((uint8 *)S->sp - S->memory));
+	for (uint8* i = &S->memory[START_STACK + SIZE_STACK - 1]; i >= (uint8 *)S->sp; i--) {
 		printf("0x%08lx: %02x\n", i - S->memory, *i);	
 	}
 }
 
-/* function:	spy_run
- *
- * desc:		executes Spyre bytecode passed in @code.  @size
- *				is the length of the bytecode array.
- */				
 void 
 spy_run(spy_state* S, const uint8* code, size_t size) {
 	
@@ -185,7 +109,8 @@ spy_run(spy_state* S, const uint8* code, size_t size) {
 		&&sub_i,	&&mul_i,	&&div_i,	&&pow_i,	
 		&&mod_i,	&&shl_i,	&&shr_i,	&&and_i,
 		&&or_i,		&&xor_i,	&&not_i,	&&ftoi,
-		&&btoi,		&&call,		&&ret_i,	&&ret_f
+		&&itof,		&&call,		&&ret_i,	&&ret_f,
+		&&put_c,	&&put_i,	&&put_f
 	};
 
 	/* allocate space for S->code to store the code */
@@ -204,6 +129,7 @@ spy_run(spy_state* S, const uint8* code, size_t size) {
 	uint16	a16, b16;
 	uint32	a32, b32;
 	uint64	a64, b64;
+	float64	fa64, fb64;
 
 
 	while ((opcode = *S->ip++)) {
@@ -231,7 +157,9 @@ push_f:
 		spy_pushFromCode(S, SIZEOF_FLOAT);
 		continue;
 add_i:
-		spy_pushInt(S, spy_popInt(S) + spy_popInt(S));
+		b64 = spy_popInt(S);
+		a64 = spy_popInt(S);
+		spy_pushInt(S, a64 + b64);
 		continue;
 sub_i:
 		b64 = spy_popInt(S);
@@ -280,10 +208,9 @@ ftoi:
 		/* safe cast from 64 bit float to 64 bit int */
 		spy_pushInt(S, (uint64)spy_popFloat(S));
 		continue;
-btoi:
-		/* for now do nothing... stack is already aligned to 8 bytes
-		 * so there is no need to cast from a byte to an int
-		 */
+itof:	
+		/* unsafe cast from 64 bit in to 64 bit float */
+		spy_pushFloat(S, (float64)spy_popInt(S));
 		continue;
 call:	
 		/* read target location from code */
@@ -303,12 +230,33 @@ call:
 		S->ip = &S->code[a32];
 
 		continue;
-ret_i:
+ret_i:	
+		a64 = spy_popInt(S); /* return value */	
+		S->sp = S->bp;	
+		S->ip = (uint8 *)spy_popInt(S);
+		S->bp = (uint64 *)spy_popInt(S);
+		S->sp += spy_popInt(S);		
+		spy_pushInt(S, a64);
 		continue;
 ret_f:
-	
+		fa64 = spy_popFloat(S); /* return value */	
+		S->sp = S->bp;	
+		S->ip = (uint8 *)spy_popInt(S);
+		S->bp = (uint64 *)spy_popInt(S);
+		S->sp += spy_popInt(S);		
+		spy_pushFloat(S, fa64);
 		continue;
-		
+put_c:
+		printf("%c\n", (sint8)spy_popInt(S));
+		continue;
+put_i:
+		printf("%llu\n", spy_popInt(S));
+		continue;
+put_f:		
+		printf("%lf\n", spy_popFloat(S));
+		continue;
+
+		continue;
 	}	
 
 	spy_dumpStack(S);

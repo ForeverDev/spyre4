@@ -33,10 +33,10 @@
 #define SIZEOF_INT		8
 #define SIZEOF_FLOAT	8
 
-typedef char				int8;
-typedef short				int16;
-typedef int					int32;
-typedef long long			int64;
+typedef char				sint8;
+typedef short				sint16;
+typedef int					sint32;
+typedef long long			sint64;
 
 typedef unsigned char		uint8;
 typedef unsigned short		uint16;

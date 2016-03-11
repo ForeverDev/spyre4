@@ -20,9 +20,11 @@ AND_I			0e						-1				v0, v1 -> result
 OR_I			0f						-1				v0, v1 -> result
 XOR_I			10						-1				v0, v1 -> result
 NOT_I			11						-1				v0 -> result
-FTOI			12						0				float_v -> (int)v0
-BTOI			13						0				byte_v -> (int)v0
+FTOI			12						0				v0 -> (int)v0
+ITOB			13						0				v0 -> (float)v0
 CALL			14		u32	u16			3				-> nargs, bp, ip	
 RET_I			15						-3				retv, ip, bp, nargs -> retv
 RET_F			16						-3				retv, ip, bp, nargs -> retv
-
+PUT_C			17						-1				v0 ->
+PUT_I			18						-1				v0 ->
+PUT_F			19						-1				v0 ->
